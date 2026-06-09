@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+  <title>Gestion Boulangerie</title>
+  <link rel="stylesheet" href="style.css">
+  <meta name="theme-color" content="#f8fbff">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Boulangerie">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon.svg">
+</head>
+<body>
+  <div id="loader" class="loader">Chargement...</div>
+
+  <div id="app" class="app hidden">
+    <main class="main">
+      <section id="main-menu" class="page active menu-page">
+        <div class="brand menu-brand">
+          <div class="brand-icon">🥖</div>
+          <div>
+            <h1>Boulangerie</h1>
+            <p>Commandes, production et facturation</p>
+          </div>
+        </div>
+
+        <div class="main-menu-list">
+          <button class="menu-card blue" onclick="showPage('dashboard')"><span class="menu-icon">🏠</span><strong>Accueil</strong><em>›</em></button>
+          <button class="menu-card green" onclick="showPage('new-order')"><span class="menu-icon">➕</span><strong>Nouvelle commande</strong><em>›</em></button>
+          <button class="menu-card orange" onclick="showPage('history')"><span class="menu-icon">📋</span><strong>Historique</strong><em>›</em></button>
+          <button class="menu-card purple" onclick="showPage('production')"><span class="menu-icon">🥐</span><strong>Production</strong><em>›</em></button>
+          <button class="menu-card cyan" onclick="showPage('billing')"><span class="menu-icon">💶</span><strong>Facturation</strong><em>›</em></button>
+          <button class="menu-card gray" onclick="showPage('settings')"><span class="menu-icon">⚙️</span><strong>Paramètres</strong><em>›</em></button>
+        </div>
+      </section>
+
+      <section id="dashboard" class="page">
+        <div class="screen-header"><div class="screen-title"><span class="mini-icon">🏠</span><h2>Accueil</h2></div><button class="btn secondary compact" onclick="showMainMenu()">Retour menu principal</button></div>
+        <div class="today">
+          <div>Aujourd'hui</div>
+          <div id="todayLabel"></div>
+        </div>
+        <div class="stats-list">
+          <div class="stat-card blue"><span class="stat-icon">📋</span><div><h3>Commandes du jour</h3><strong id="statCommandes">0</strong><p>Total commandes du jour</p></div></div>
+          <div class="stat-card green"><span class="stat-icon">📦</span><div><h3>Pièces à Produire</h3><strong id="statProduction">0</strong><p>Total pièces</p></div></div>
+          <div class="stat-card orange"><span class="stat-icon">💶</span><div><h3>Facture en attente</h3><strong id="statFactures">0</strong><p>Factures non payées</p></div></div>
+        </div>
+      </section>
+
+      <section id="new-order" class="page">
+        <div class="screen-header"><div class="screen-title"><span class="mini-icon green">➕</span><h2>Nouvelle commande</h2></div><button class="btn secondary compact" onclick="showMainMenu()">Retour menu principal</button></div>
+        <form id="orderForm" class="form-card">
+          <label>Client <input id="client" type="text" required placeholder="Client de passage"></label>
+          <label>Boulangerie <select id="boulangerie" required></select></label>
+          <label>Employé <select id="employe" required></select></label>
+          <label>Date livraison <input id="dateLivraison" type="date" required></label>
+          <label>Heure retrait <input id="heure" type="time" required></label>
+          <label>Téléphone <input id="telephone" type="tel" required placeholder="0612345678"></label>
+          <label>Notes <textarea id="orderNotes" placeholder="Notes (optionnel)"></textarea></label>
+
+          <div class="section-title"><h3>Produits</h3></div>
+          <div id="productLines" class="product-lines"></div>
+          <button type="button" class="btn secondary" onclick="addProductLine()">Ajouter un produit</button>
+
+          <div class="order-total"><span>Total commande</span><strong id="orderTotal">0,00 €</strong></div>
+          <div class="form-actions"><button type="reset" class="btn secondary">Effacer</button><button type="submit" class="btn primary">Enregistrer</button></div>
+        </form>
+      </section>
+
+      <section id="history" class="page">
+        <div class="screen-header"><div class="screen-title"><span class="mini-icon orange">📋</span><h2>Historique</h2></div><button class="btn secondary compact" onclick="showMainMenu()">Retour menu principal</button></div>
+        <div class="filters-card">
+          <label>Du <input id="hDateDebut" type="date"></label><label>Au <input id="hDateFin" type="date"></label>
+          <label>Client <input id="hClient" type="search" placeholder="Tous"></label>
+          <label>Boulangerie <select id="hBoulangerie"><option value="">Toutes</option></select></label>
+          <label>Statut <select id="hStatut"><option value="">Tous</option></select></label>
+          <button class="btn primary" onclick="loadHistory()">Rechercher</button>
+        </div>
+        <div class="table-card"><table id="historyTable"></table></div>
+      </section>
+
+      <section id="production" class="page">
+        <div class="screen-header"><div class="screen-title"><span class="mini-icon purple">🥐</span><h2>Production</h2></div><button class="btn secondary compact" onclick="showMainMenu()">Retour menu principal</button></div>
+        <div class="filters-card"><label>Date début <input id="pDateDebut" type="date"></label><label>Date fin <input id="pDateFin" type="date"></label><label>Boulangerie <select id="pBoulangerie"><option value="">Toutes</option></select></label><button class="btn primary" onclick="loadProduction()">Afficher</button></div>
+        <div class="table-card"><table id="productionTable"></table></div>
+      </section>
+
+      <section id="billing" class="page">
+        <div class="screen-header"><div class="screen-title"><span class="mini-icon cyan">💶</span><h2>Facturation</h2></div><button class="btn secondary compact" onclick="showMainMenu()">Retour menu principal</button></div>
+        <div class="filters-card"><label>Date début <input id="fDateDebut" type="date"></label><label>Date fin <input id="fDateFin" type="date"></label><label>Boulangerie <select id="fBoulangerie"><option value="">Toutes</option></select></label><label>Client <input id="fClient" type="search" placeholder="Client à facturer"></label><button class="btn primary" onclick="createInvoice()">Créer facture</button></div>
+        <div class="table-card"><table id="invoiceTable"></table></div>
+      </section>
+
+      <section id="settings" class="page">
+        <div class="screen-header"><div class="screen-title"><span class="mini-icon gray">⚙️</span><h2>Paramètres</h2></div><button class="btn secondary compact" onclick="showMainMenu()">Retour menu principal</button></div>
+        <div class="tabs"><button class="active" type="button">Produits</button><button type="button" disabled data-always-disabled="1">Clients</button><button type="button" disabled data-always-disabled="1">Autres</button></div>
+        <div class="table-card"><table id="productsTable"></table></div>
+        <div class="add-product-row"><input id="newProductName" placeholder="Nouveau produit"><input id="newProductPrice" type="number" step="0.01" min="0" placeholder="Prix (€)"><button class="btn primary" onclick="addParamProduct()">Ajouter</button></div>
+        <p class="info-box">Les prix sont utilisés dans les nouvelles commandes.</p>
+      </section>
+    </main>
+  </div>
+
+  <div id="busyOverlay" class="busy-overlay hidden"><div class="busy-box"><div class="hourglass">⌛</div><div>Traitement en cours...</div></div></div>
+  <div id="toast" class="toast hidden"></div>
+  <script src="script.js"></script>
+  <!-- ===== Installation PWA smartphone ===== -->
+<div id="installPwaBanner" class="install-pwa-banner">
+  <span>Installer l'application</span>
+  <button type="button" id="installPwaBtn">Installer</button>
+</div>
+
+<div id="iosInstallHelp" class="ios-install-help">
+  Pour installer l'application sur iPhone : touche le bouton Partager, puis « Sur l'écran d'accueil ».
+  <button type="button" class="btn secondary" onclick="document.getElementById('iosInstallHelp').classList.remove('show')">OK</button>
+</div>
+
+<script>
+(function(){
+  let deferredPrompt = null;
+  const banner = document.getElementById("installPwaBanner");
+  const installBtn = document.getElementById("installPwaBtn");
+  const iosHelp = document.getElementById("iosInstallHelp");
+
+  const isStandalone =
+    window.matchMedia("(display-mode: standalone)").matches ||
+    window.navigator.standalone === true;
+
+  const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+
+  if (!isStandalone && isIOS) {
+    setTimeout(function(){
+      if (iosHelp) iosHelp.classList.add("show");
+    }, 1200);
+  }
+
+  window.addEventListener("beforeinstallprompt", function(e){
+    e.preventDefault();
+    deferredPrompt = e;
+    if (banner && !isStandalone) banner.classList.add("show");
+  });
+
+  if (installBtn) {
+    installBtn.addEventListener("click", async function(){
+      if (!deferredPrompt) return;
+      banner.classList.remove("show");
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      deferredPrompt = null;
+    });
+  }
+
+  window.addEventListener("appinstalled", function(){
+    if (banner) banner.classList.remove("show");
+  });
+})();
+</script>
+
+</body>
+</html>
