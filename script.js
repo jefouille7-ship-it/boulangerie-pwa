@@ -1,90 +1,36 @@
+
 const API_URL = 'https://script.google.com/macros/s/AKfycbwA271ln5DbeQZ2fWr-GxHnLxoJte8jlpLDIBnGFjo4hJYtpbIS0rRMd_bfqwf12WKlSg/exec';
-
-function apiRequest(action, args) {
-  args = Array.isArray(args) ? args : (args === undefined ? [] : [args]);
-
+let API_COUNTER = 0;
+function apiCall(action, payload) {
   return new Promise((resolve, reject) => {
-    const callbackName = '__boulangerieApiCallback_' + Date.now() + '_' + Math.floor(Math.random() * 1000000);
+    const callbackName = 'boulangerieApiCallback_' + Date.now() + '_' + (++API_COUNTER);
+    const params = new URLSearchParams();
+    params.set('action', action);
+    params.set('callback', callbackName);
+    params.set('payload', JSON.stringify(payload || {}));
     const script = document.createElement('script');
-    const sep = API_URL.indexOf('?') === -1 ? '?' : '&';
-
-    const cleanup = () => {
-      try { delete window[callbackName]; } catch (e) { window[callbackName] = undefined; }
-      if (script && script.parentNode) script.parentNode.removeChild(script);
-    };
-
-    window[callbackName] = (response) => {
+    const timeout = setTimeout(() => {
       cleanup();
-      if (response && response.success) {
-        resolve(response.result);
-      } else {
-        reject(new Error((response && response.error) || 'Erreur API Apps Script'));
-      }
-    };
-
-    script.onerror = () => {
+      reject(new Error('Délai dépassé lors de la communication avec Apps Script.'));
+    }, 45000);
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[callbackName] = function(response) {
       cleanup();
-      reject(new Error('Impossible de contacter l’API Apps Script.'));
+      if (response && response.success) resolve(response.data);
+      else reject(new Error((response && response.error) || 'Erreur Apps Script.'));
     };
-
-    script.src = API_URL + sep +
-      'action=' + encodeURIComponent(action) +
-      '&payload=' + encodeURIComponent(JSON.stringify(args)) +
-      '&callback=' + encodeURIComponent(callbackName) +
-      '&_=' + Date.now();
-
+    script.onerror = function() {
+      cleanup();
+      reject(new Error('Impossible de joindre Apps Script.'));
+    };
+    script.src = API_URL + '?' + params.toString();
     document.body.appendChild(script);
   });
 }
-
-function registerServiceWorker() {
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./service-worker.js').catch(() => {});
-    });
-  }
-}
-
-function setupInstallPrompt() {
-  let deferredPrompt = null;
-  const banner = document.getElementById('installPwaBanner');
-  const installBtn = document.getElementById('installPwaBtn');
-  const iosHelp = document.getElementById('iosInstallHelp');
-
-  const isStandalone =
-    window.matchMedia('(display-mode: standalone)').matches ||
-    window.navigator.standalone === true;
-
-  const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
-
-  if (!isStandalone && isIOS) {
-    setTimeout(() => { if (iosHelp) iosHelp.classList.add('show'); }, 1200);
-  }
-
-  window.addEventListener('beforeinstallprompt', event => {
-    event.preventDefault();
-    deferredPrompt = event;
-    if (banner && !isStandalone) banner.classList.add('show');
-  });
-
-  if (installBtn) {
-    installBtn.addEventListener('click', async () => {
-      if (!deferredPrompt) return;
-      if (banner) banner.classList.remove('show');
-      deferredPrompt.prompt();
-      await deferredPrompt.userChoice;
-      deferredPrompt = null;
-    });
-  }
-
-  window.addEventListener('appinstalled', () => {
-    if (banner) banner.classList.remove('show');
-  });
-}
-
-registerServiceWorker();
-document.addEventListener('DOMContentLoaded', setupInstallPrompt);
-
 let PARAMS = { boulangeries: [], employes: [], produits: [], prixProduits: {}, statuts: [], priorites: [] };
 let LAST_BOULANGERIE = '';
 let LAST_EMPLOYE = '';
@@ -110,7 +56,8 @@ function initApp() {
   document.getElementById('telephone').addEventListener('blur', cleanTelephoneField);
   document.addEventListener('input', event => { if (event.target.matches('.line-qte,.line-prix')) updateOrderTotal(); });
 
-  apiRequest('getAppData').then(data => {
+  apiCall('getAppData')
+    .then(data => {
       PARAMS = data.parametres || PARAMS;
       hydrateSelects();
       updateStats(data.stats || {});
@@ -127,7 +74,8 @@ function initApp() {
 function refreshAll() {
   if (APP_BUSY) return;
   setBusy(true, 'Actualisation...');
-  apiRequest('getAppData').then(data => {
+  apiCall('getAppData')
+    .then(data => {
       PARAMS = data.parametres || PARAMS;
       hydrateSelects();
       updateStats(data.stats || {});
@@ -152,12 +100,7 @@ function setTodayLabel() {
   const el = document.getElementById('todayLabel');
   if (!el) return;
   const d = new Date();
-  el.textContent = d.toLocaleDateString('fr-FR', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric'
-  }).replace(/^./, c => c.toUpperCase());
+  el.textContent = d.toLocaleDateString('fr-FR');
 }
 
 
@@ -290,7 +233,8 @@ function submitOrder(event) {
   };
 
   setBusy(true);
-  apiRequest('saveCommande', [payload]).then(res => {
+  apiCall('saveCommande', payload)
+    .then(res => {
       setBusy(false);
       toast(`Commande ${res.numero} enregistrée`, 'success');
       LAST_BOULANGERIE = payload.boulangerie;
@@ -313,7 +257,7 @@ function loadHistory() {
     statut: document.getElementById('hStatut').value,
     client: document.getElementById('hClient').value.trim()
   };
-  apiRequest('getCommandes', [filters])
+  apiCall('getCommandes', filters)
     .then(rows => { renderHistory(rows); setBusy(false); })
     .catch(err => { setBusy(false); showError(err); });
 }
@@ -352,7 +296,7 @@ function statusSelect(row, selected) {
 function changeStatus(row, statut) {
   if (APP_BUSY) return;
   setBusy(true, 'Modification...');
-  apiRequest('updateCommandeStatus', [row, statut])
+  apiCall('updateCommandeStatus', { rowNumber: row, statut: statut })
     .then(() => { setBusy(false); toast('Statut modifié', 'success'); })
     .catch(err => { setBusy(false); showError(err); });
 }
@@ -361,7 +305,7 @@ function deleteLine(row) {
   if (APP_BUSY) return;
   if (!confirm('Supprimer cette ligne de commande ?')) return;
   setBusy(true, 'Suppression...');
-  apiRequest('deleteCommandeLine', [row])
+  apiCall('deleteCommandeLine', { rowNumber: row })
     .then(() => { setBusy(false); toast('Ligne supprimée', 'success'); loadHistory(); })
     .catch(err => { setBusy(false); showError(err); });
 }
@@ -374,7 +318,7 @@ function loadProduction() {
     dateFin: document.getElementById('pDateFin').value,
     boulangerie: document.getElementById('pBoulangerie').value
   };
-  apiRequest('getProduction', [filters])
+  apiCall('getProduction', filters)
     .then(rows => { renderProduction(rows); setBusy(false); })
     .catch(err => { setBusy(false); showError(err); });
 }
@@ -396,7 +340,7 @@ function renderProduction(rows) {
 function loadInvoices() {
   if (APP_BUSY) return;
   setBusy(true, 'Chargement factures...');
-  apiRequest('getFactures', [{}])
+  apiCall('getFactures', {})
     .then(rows => { renderInvoices(rows); setBusy(false); })
     .catch(err => { setBusy(false); showError(err); });
 }
@@ -411,7 +355,7 @@ function createInvoice() {
   };
   if (!filters.client) return toast('Indiquez le client à facturer.', 'error');
   setBusy(true, 'Création facture...');
-  apiRequest('createFacture', [filters])
+  apiCall('createFacture', filters)
     .then(res => { setBusy(false); toast(`Facture ${res.numero} créée`, 'success'); loadInvoices(); })
     .catch(err => { setBusy(false); showError(err); });
 }
@@ -440,7 +384,7 @@ function renderInvoices(rows) {
 function markPaid(row) {
   if (APP_BUSY) return;
   setBusy(true, 'Mise à jour...');
-  apiRequest('markFacturePaid', [row])
+  apiCall('markFacturePaid', { rowNumber: row })
     .then(() => { setBusy(false); toast('Facture marquée payée', 'success'); loadInvoices(); })
     .catch(err => { setBusy(false); showError(err); });
 }
@@ -499,7 +443,7 @@ function addParamProduct() {
   if (!name) return toast('Indiquez un produit.', 'error');
   if (price < 0) return toast('Prix invalide.', 'error');
   setBusy(true, 'Enregistrement...');
-  apiRequest('saveParamProduct', [{ produit: name, prix: price }]).then(data => {
+  apiCall('saveParamProduct', { produit: name, prix: price }).then(data => {
     PARAMS = data.parametres || PARAMS;
     hydrateSelects();
     renderProductsSettings();
@@ -518,7 +462,7 @@ function editParamProduct(produit) {
   const price = Number(String(value).replace(',', '.'));
   if (isNaN(price) || price < 0) return toast('Prix invalide.', 'error');
   setBusy(true, 'Modification...');
-  apiRequest('saveParamProduct', [{ produit: produit, prix: price }]).then(data => {
+  apiCall('saveParamProduct', { produit: produit, prix: price }).then(data => {
     PARAMS = data.parametres || PARAMS;
     hydrateSelects();
     renderProductsSettings();
@@ -531,7 +475,7 @@ function deleteParamProduct(produit) {
   if (APP_BUSY) return;
   if (!confirm('Supprimer le produit "' + produit + '" ?')) return;
   setBusy(true, 'Suppression...');
-  apiRequest('deleteParamProduct', [produit]).then(data => {
+  apiCall('deleteParamProduct', { produit: produit }).then(data => {
     PARAMS = data.parametres || PARAMS;
     hydrateSelects();
     renderProductsSettings();
@@ -541,3 +485,11 @@ function deleteParamProduct(produit) {
 }
 
 function escapeAttr(value) { return escapeHtml(value).replace(/'/g, '&#39;'); }
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('./service-worker.js').catch(function(err) {
+      console.warn('Service worker non enregistré', err);
+    });
+  });
+}
